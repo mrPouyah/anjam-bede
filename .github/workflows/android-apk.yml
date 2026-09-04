@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,9 +25,15 @@ jobs:
           gradle-version: '8.9'
       - name: Build debug APK
         run: gradle :android-app:assembleDebug --stacktrace
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: anjam-bede-apk
           path: android-app/build/outputs/apk/debug/android-app-debug.apk
           if-no-files-found: error
+      - name: Publish direct APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v1.0.0 --cleanup-tag --yes || true
+          gh release create v1.0.0 android-app/build/outputs/apk/debug/android-app-debug.apk#Anjam-Bede.apk --target "$GITHUB_SHA" --title "انجام بده ۱.۰" --notes "نسخهٔ آمادهٔ نصب برنامهٔ انجام بده"
