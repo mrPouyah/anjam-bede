@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f1e8">
+  <meta name="description" content="برنامه‌ریز مینیمال ایرانی با تاریخ شمسی">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css?v=7">
+  <title>امروز</title>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div>
+        <p class="gregorian" id="gregorianDate"></p>
+        <h1 id="greeting">سلام</h1>
+      </div>
+      <div class="header-actions">
+        <button class="fal-button" id="falButton" aria-label="فال امروز" title="فال امروز">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5c3.1-.8 5.4-.1 7 2v13c-1.6-2.1-3.9-2.8-7-2V4.5Zm14 0c-3.1-.8-5.4-.1-7 2v13c1.6-2.1 3.9-2.8 7-2V4.5Z"/></svg>
+        </button>
+        <button class="notification-button" id="notificationButton" aria-label="تنظیم اعلان‌ها" title="تنظیم اعلان‌ها">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>
+          </svg>
+          <span class="status-dot"></span>
+          <span class="sr-only" id="notificationStatus">اعلان‌ها خاموش</span>
+        </button>
+        <button class="today-button" id="todayButton">امروز</button>
+      </div>
+    </header>
+
+    <section class="hero-date" aria-label="تاریخ انتخاب‌شده">
+      <button class="date-arrow" id="nextDay" aria-label="روز بعد">‹</button>
+      <div>
+        <p class="weekday" id="weekday"></p>
+        <h2 id="persianDate"></h2>
+        <p class="scribble">برای امروز چه در ذهن داری؟</p>
+      </div>
+      <button class="date-arrow" id="previousDay" aria-label="روز قبل">›</button>
+    </section>
+
+    <nav class="week" id="week" aria-label="روزهای هفته"></nav>
+
+    <section class="progress">
+      <div class="progress-copy">
+        <span id="progressLabel">هنوز کاری ثبت نشده</span>
+        <span id="progressPercent">۰٪</span>
+      </div>
+      <div class="progress-track"><span id="progressBar"></span></div>
+    </section>
+
+    <section class="notification-card" id="notificationCard">
+      <div>
+        <strong>یادآوری هوشمند <span id="cardNotificationStatus">خاموش</span></strong>
+        <p>۵ دقیقه قبل، سر وقت، و خلاصه‌های ۱۱:۵۵ و ۲۳:۵۵</p>
+      </div>
+      <button id="enableNotifications">فعال‌سازی</button>
+    </section>
+
+    <section class="task-section">
+      <header class="section-header">
+        <h3>کارهای روز</h3>
+        <span id="taskCount">۰ کار</span>
+      </header>
+      <div id="taskList" class="task-list"></div>
+      <div id="emptyState" class="empty-state">
+        <span>✦</span>
+        <h4>روزت هنوز باز است</h4>
+        <p>یک کار کوچک اضافه کن؛ باقی راه خودش پیدا می‌شود.</p>
+      </div>
+    </section>
+  </main>
+
+  <button class="add-button" id="addButton"><b>＋</b> افزودن کار</button>
+
+  <dialog id="taskDialog">
+    <form id="taskForm">
+      <header class="dialog-header">
+        <div>
+          <p class="scribble accent">یک یادداشت برای خودت</p>
+          <h2>کار تازه</h2>
+        </div>
+        <button type="button" class="close" id="closeDialog" aria-label="بستن">×</button>
+      </header>
+
+      <label>عنوان کار
+        <input id="taskTitle" maxlength="70" placeholder="مثلاً تماس با مامان" autocomplete="off" required>
+      </label>
+      <div class="form-row">
+        <label>تاریخ شمسی
+          <input id="taskDate" inputmode="numeric" placeholder="۱۴۰۵/۰۶/۱۳" required>
+        </label>
+        <label>ساعت
+          <input id="taskTime" type="time" required>
+        </label>
+      </div>
+      <label>یادداشت <small>اختیاری</small>
+        <textarea id="taskNote" maxlength="180" rows="3" placeholder="هر چیزی که کمک می‌کند یادت بماند…"></textarea>
+      </label>
+      <button class="save-button" type="submit">ذخیره برای این روز</button>
+    </form>
+  </dialog>
+
+  <dialog id="falDialog" class="fal-dialog">
+    <article>
+      <header class="fal-header">
+        <div>
+          <p class="fal-kicker">فال امروز تو</p>
+          <h2 id="falTitle">از لسان‌الغیب</h2>
+        </div>
+        <button type="button" class="close" id="closeFal" aria-label="بستن">×</button>
+      </header>
+      <div class="fal-ornament">✦</div>
+      <div class="fal-loading" id="falLoading">دیوان را می‌گشاییم…</div>
+      <div id="falContent" hidden>
+        <div class="fal-verses" id="falVerses"></div>
+        <div class="fal-reading">
+          <span>تعبیر فال</span>
+          <p id="falReading"></p>
+        </div>
+        <p class="fal-source" id="falSource"></p>
+      </div>
+      <button type="button" class="save-button fal-close-button" id="acceptFal">به امید خیر</button>
+    </article>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js?v=8"></script>
+</body>
+</html>
