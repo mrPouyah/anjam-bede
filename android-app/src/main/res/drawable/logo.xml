@@ -1,0 +1,4 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><shape android:shape="rectangle"><solid android:color="#F5F1E8"/><corners android:radius="108dp"/></shape></item>
+    <item android:left="34dp" android:right="34dp" android:top="34dp" android:bottom="34dp" android:drawable="@drawable/logo_mark"/>
+</layer-list>
