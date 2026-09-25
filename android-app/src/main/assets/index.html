@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f1e8">
   <meta name="description" content="برنامه‌ریز مینیمال ایرانی با تاریخ شمسی">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=7">
+  <link rel="stylesheet" href="styles.css?v=37">
   <title>امروز</title>
 </head>
 <body>
@@ -31,7 +31,12 @@
       </div>
     </header>
 
-    <section class="hero-date" aria-label="تاریخ انتخاب‌شده">
+        <nav class="view-tabs" id="viewTabs">
+          <button class="view-tab active" data-view="day">امروز</button>
+          <button class="view-tab" data-view="subscriptions">اشتراک‌ها</button>
+        </nav>
+
+        <section class="hero-date" aria-label="تاریخ انتخاب‌شده">
       <button class="date-arrow" id="nextDay" aria-label="روز بعد">‹</button>
       <div>
         <p class="weekday" id="weekday"></p>
@@ -54,7 +59,7 @@
     <section class="notification-card" id="notificationCard">
       <div>
         <strong>یادآوری هوشمند <span id="cardNotificationStatus">خاموش</span></strong>
-        <p>۵ دقیقه قبل، سر وقت، و خلاصه‌های ۱۱:۵۵ و ۲۳:۵۵</p>
+        <p>یادآوری کارها و موعد تمدید اشتراک‌ها</p>
       </div>
       <button id="enableNotifications">فعال‌سازی</button>
     </section>
@@ -71,7 +76,35 @@
         <p>یک کار کوچک اضافه کن؛ باقی راه خودش پیدا می‌شود.</p>
       </div>
     </section>
-  </main>
+
+        <section class="projects-section" id="projectsSection" hidden aria-hidden="true">
+              <header class="section-header">
+                <div>
+                  <h3>پروژه‌ها</h3>
+                  <span id="projectCount">۰ پروژه</span>
+                </div>
+                <button class="add-project-btn" id="openAddProjectBtn" type="button">＋ افزودن پروژه</button>
+              </header>
+              <div class="projects-list" id="projectsList"></div>
+          <div class="empty-state" id="projectsEmpty">
+            <span>✦</span>
+            <h4>هنوز پروژه‌ای نداری</h4>
+            <p>کارهایت را توی پروژه‌های هفتگی، ماهانه یا سالانه دسته‌بندی کن.</p>
+            <button class="create-project-button" id="createProjectEmpty">ساختن اولین پروژه</button>
+          </div>
+        </section>
+
+    <section class="subscription-preview" id="subscriptionPreview">
+      <header class="section-header"><h3>پرداخت‌های پیش رو</h3><button type="button" id="showSubscriptions">دیدن همه</button></header>
+      <div id="subscriptionPreviewList"></div>
+    </section>
+    <section class="subscriptions-section" id="subscriptionsSection" hidden>
+      <header class="section-header"><div><h3>یادآور اشتراک‌ها</h3><span id="subscriptionCount">۰ اشتراک</span></div><button type="button" id="openSubscriptionDialog">＋ افزودن اشتراک</button></header>
+      <p class="subscription-hint">پرداخت‌ها را خودت ثبت می‌کنی؛ برنامه فقط زمان تمدید را یادآوری می‌کند.</p>
+      <div id="subscriptionsList" class="subscriptions-list"></div>
+      <div class="empty-state" id="subscriptionsEmpty"><span>✦</span><h4>هنوز اشتراکی نداری</h4><p>تاریخ خرید را ثبت کن تا زمان تمدید یادت بماند.</p><button type="button" id="createSubscriptionEmpty">افزودن اولین اشتراک</button></div>
+    </section>
+      </main>
 
   <button class="add-button" id="addButton"><b>＋</b> افزودن کار</button>
 
@@ -90,20 +123,121 @@
       </label>
       <div class="form-row">
         <label>تاریخ شمسی
-          <input id="taskDate" inputmode="numeric" placeholder="۱۴۰۵/۰۶/۱۳" required>
+          <input id="taskDate" class="date-picker-input" readonly required aria-haspopup="dialog" aria-controls="datePickerDialog" placeholder="انتخاب تاریخ">
         </label>
         <label>ساعت
           <input id="taskTime" type="time" required>
         </label>
       </div>
       <label>یادداشت <small>اختیاری</small>
-        <textarea id="taskNote" maxlength="180" rows="3" placeholder="هر چیزی که کمک می‌کند یادت بماند…"></textarea>
-      </label>
-      <button class="save-button" type="submit">ذخیره برای این روز</button>
+              <textarea id="taskNote" maxlength="180" rows="3" placeholder="هر چیزی که کمک می‌کند یادت بماند…"></textarea>
+            </label>
+            <label hidden aria-hidden="true">پروژه <small>اختیاری</small>
+              <div class="project-picker" id="projectPicker">
+                <button type="button" class="project-select" id="projectSelect">
+                  <span id="projectSelectLabel">بدون پروژه</span>
+                  <span class="project-chevron">▾</span>
+                </button>
+                <div class="project-dropdown" id="projectDropdown" hidden>
+                  <button type="button" class="project-option" data-project="">بدون پروژه</button>
+                  <div id="projectOptions"></div>
+                  <button type="button" class="project-option new-project" id="newProjectButton">+ پروژه جدید</button>
+                </div>
+              </div>
+              <input type="hidden" id="taskProjectId" value="">
+            </label>
+            <button class="save-button" type="submit">ذخیره برای این روز</button>
     </form>
   </dialog>
 
-  <dialog id="falDialog" class="fal-dialog">
+    <dialog id="projectDialog">
+      <form id="projectForm">
+        <header class="dialog-header">
+          <div>
+            <p class="scribble accent">دسته‌بندی برای هدف‌هایت</p>
+            <h2>پروژه تازه</h2>
+          </div>
+          <button type="button" class="close" id="closeProjectDialog" aria-label="بستن">×</button>
+        </header>
+        <label>نام پروژه
+          <input id="projectTitle" maxlength="40" placeholder="مثلاً یادگیری زبان" autocomplete="off" required>
+        </label>
+        <label>بازه زمانی</label>
+        <div class="scope-picker" id="scopePicker">
+          <button type="button" class="scope-chip active" data-scope="week">هفته</button>
+          <button type="button" class="scope-chip" data-scope="month">ماه</button>
+          <button type="button" class="scope-chip" data-scope="year">سال</button>
+        </div>
+        <label>رنگ</label>
+        <div class="color-picker" id="colorPicker">
+          <button type="button" class="color-chip active" data-color="0" style="--chip-color: #c76c48"></button>
+          <button type="button" class="color-chip" data-color="1" style="--chip-color: #4a9c8c"></button>
+          <button type="button" class="color-chip" data-color="2" style="--chip-color: #7b6cb0"></button>
+          <button type="button" class="color-chip" data-color="3" style="--chip-color: #c7a03e"></button>
+          <button type="button" class="color-chip" data-color="4" style="--chip-color: #5b8fbf"></button>
+          <button type="button" class="color-chip" data-color="5" style="--chip-color: #b85c7a"></button>
+        </div>
+        <button class="save-button" type="submit">ساختن پروژه</button>
+        </form>
+        </dialog>
+
+        <dialog id="scheduleDialog">
+        <form id="scheduleForm">
+          <header class="dialog-header">
+            <div>
+              <p class="scribble accent">افزودن به برنامه روزانه</p>
+              <h2 id="scheduleProjectTitle">زمان‌بندی پروژه</h2>
+            </div>
+            <button type="button" class="close" id="closeScheduleDialog" aria-label="بستن">×</button>
+          </header>
+          <input type="hidden" id="scheduleProjectId" value="">
+          <label>عنوان کار در روز
+            <input id="scheduleTaskTitle" maxlength="70" placeholder="عنوان کار" autocomplete="off" required>
+          </label>
+          <div class="form-row">
+            <label>تاریخ شروع (شمسی)
+              <input id="scheduleDate" class="date-picker-input" readonly required aria-haspopup="dialog" aria-controls="datePickerDialog" placeholder="انتخاب تاریخ">
+            </label>
+            <label>ساعت
+              <input id="scheduleTime" type="time" required>
+            </label>
+          </div>
+          <label>یادداشت <small>اختیاری</small>
+            <textarea id="scheduleTaskNote" maxlength="180" rows="2" placeholder="یادداشت تکمیلی…"></textarea>
+          </label>
+          <button class="save-button" type="submit">ثبت در برنامه روزانه</button>
+        </form>
+        </dialog>
+
+  <dialog id="subscriptionDialog">
+    <form id="subscriptionForm">
+      <header class="dialog-header"><h2 id="subscriptionDialogTitle">اشتراک تازه</h2><button type="button" class="close" id="closeSubscriptionDialog" aria-label="بستن">×</button></header>
+      <label>نام اشتراک<input id="subscriptionTitle" maxlength="70" placeholder="مثلاً اینترنت یا سرویس فیلم" autocomplete="off" required></label>
+      <div class="form-row"><label>تاریخ خرید (شمسی)<input id="subscriptionDate" class="date-picker-input" readonly required aria-haspopup="dialog" aria-controls="datePickerDialog" placeholder="انتخاب تاریخ"></label><label>ساعت خرید<input id="subscriptionTime" type="time" required></label></div>
+      <label>دورهٔ تمدید<select id="subscriptionRule"><option value="jalali-month">هر ماه شمسی</option><option value="gregorian-month">هر ماه میلادی</option><option value="30-days">هر ۳۰ روز</option><option value="week">هر هفته</option><option value="jalali-year">هر سال شمسی</option></select></label>
+      <label>مبلغ (ریال، اختیاری)<input id="subscriptionAmount" type="number" inputmode="numeric" min="0" step="1" placeholder="مثلاً ۱۵۰۰۰۰۰"></label>
+      <label>یادآوری پیش از سررسید<select id="subscriptionLead"><option value="3">۳ روز قبل</option><option value="1">۱ روز قبل</option><option value="0">فقط سررسید</option><option value="7">۷ روز قبل</option></select></label>
+      <button class="save-button" type="submit">ذخیرهٔ اشتراک</button>
+    </form>
+  </dialog>
+  <dialog id="datePickerDialog" class="date-picker-dialog" aria-labelledby="datePickerTitle">
+    <div class="date-picker-content">
+      <header class="dialog-header">
+        <h2 id="datePickerTitle">انتخاب تاریخ شمسی</h2>
+        <button type="button" class="close" id="closeDatePicker" aria-label="بستن">×</button>
+      </header>
+      <div class="date-picker-navigation">
+        <button type="button" id="previousMonth" aria-label="ماه قبل">›</button>
+        <strong id="datePickerMonth"></strong>
+        <button type="button" id="nextMonth" aria-label="ماه بعد">‹</button>
+      </div>
+      <div class="date-picker-weekdays" aria-hidden="true"><span>ش</span><span>ی</span><span>د</span><span>س</span><span>چ</span><span>پ</span><span>ج</span></div>
+      <div class="date-picker-days" id="datePickerDays"></div>
+      <button type="button" class="date-picker-today" id="datePickerToday">انتخاب امروز</button>
+    </div>
+  </dialog>
+
+        <dialog id="falDialog" class="fal-dialog">
     <article>
       <header class="fal-header">
         <div>
@@ -127,6 +261,7 @@
   </dialog>
 
   <div class="toast" id="toast" role="status"></div>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=37"></script>
+  <script src="subscriptions.js?v=37"></script>
 </body>
 </html>

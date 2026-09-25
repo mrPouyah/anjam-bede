@@ -5,6 +5,7 @@ const dateDay = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { day: 'numeric' }
 const weekday = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { weekday: 'long' });
 const gregorian = new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { year: 'numeric', month: 'long', day: 'numeric' });
 const numericPersian = new Intl.DateTimeFormat('en-US-u-ca-persian', { year: 'numeric', month: '2-digit', day: '2-digit' });
+const persianMonth = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { year: 'numeric', month: 'long' });
 
 const ui = {
   gregorianDate: $('gregorianDate'), greeting: $('greeting'), weekday: $('weekday'), persianDate: $('persianDate'),
@@ -16,13 +17,28 @@ const ui = {
   notificationCard: $('notificationCard'), enableNotifications: $('enableNotifications'),
   cardNotificationStatus: $('cardNotificationStatus'), falButton: $('falButton'),
   falDialog: $('falDialog'), falTitle: $('falTitle'), falLoading: $('falLoading'),
-  falContent: $('falContent'), falVerses: $('falVerses'), falReading: $('falReading'), falSource: $('falSource')
-};
+  falContent: $('falContent'), falVerses: $('falVerses'), falReading: $('falReading'), falSource: $('falSource'),
+    viewTabs: $('viewTabs'), projectsSection: $('projectsSection'), projectsList: $('projectsList'),
+    projectsEmpty: $('projectsEmpty'), projectCount: $('projectCount'), projectDialog: $('projectDialog'),
+    projectForm: $('projectForm'), projectTitle: $('projectTitle'), scopePicker: $('scopePicker'),
+    colorPicker: $('colorPicker'), projectSelect: $('projectSelect'), projectSelectLabel: $('projectSelectLabel'),
+    projectDropdown: $('projectDropdown'), projectOptions: $('projectOptions'), taskProjectId: $('taskProjectId'),
+    openAddProjectBtn: $('openAddProjectBtn'), scheduleDialog: $('scheduleDialog'),
+    scheduleForm: $('scheduleForm'), scheduleProjectId: $('scheduleProjectId'),
+    scheduleProjectTitle: $('scheduleProjectTitle'), scheduleTaskTitle: $('scheduleTaskTitle'),
+    scheduleDate: $('scheduleDate'), scheduleTime: $('scheduleTime'), scheduleTaskNote: $('scheduleTaskNote'),
+    closeScheduleDialog: $('closeScheduleDialog'),
+    datePickerDialog: $('datePickerDialog'), datePickerMonth: $('datePickerMonth'),
+    datePickerDays: $('datePickerDays')
+  };
 
 let selectedDate = atMidnight(new Date());
 let tasks = readTasks();
 let sentNotifications = readNotificationLog();
 let falState = readFalState();
+let projects = readProjects();
+let activeDateInput = null;
+let pickerMonth = null;
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const HAFEZ_GHAZAL_COUNT = 495;
@@ -47,6 +63,10 @@ const FALLBACK_FALS = [
   { id: 'local-7', title: 'غزل شمارهٔ ۱۴۳', verses: ['سال‌ها دل طلب جام جم از ما می‌کرد', 'وان چه خود داشت ز بیگانه تمنا می‌کرد', 'گوهری کز صدف کون و مکان بیرون است', 'طلب از گمشدگان لب دریا می‌کرد'] },
   { id: 'local-8', title: 'غزل شمارهٔ ۱۸۴', verses: ['دوش دیدم که ملائک در میخانه زدند', 'گل آدم بسرشتند و به پیمانه زدند', 'ساکنان حرم ستر و عفاف ملکوت', 'با من راه‌نشین باده مستانه زدند'] }
 ];
+
+const PROJECT_COLORS = ['#c76c48', '#4a9c8c', '#7b6cb0', '#c7a03e', '#5b8fbf', '#b85c7a'];
+const SCOPE_LABELS = { week: 'هفته', month: 'ماه', year: 'سال' };
+const SCOPE_ORDER = ['week', 'month', 'year'];
 
 function atMidnight(value) {
   const result = new Date(value);
@@ -87,6 +107,79 @@ function numericJalali(value) {
   return toPersianDigits(`${values.year}/${values.month}/${values.day}`);
 }
 
+function jalaliParts(value) {
+  return Object.fromEntries(numericPersian.formatToParts(value)
+    .filter(part => ['year', 'month', 'day'].includes(part.type))
+    .map(part => [part.type, Number(toEnglishDigits(part.value))]));
+}
+
+function jalaliMonthKey(value) {
+  const { year, month } = jalaliParts(value);
+  return `${year}-${month}`;
+}
+
+function firstDayOfJalaliMonth(value) {
+  let day = atMidnight(value);
+  const month = jalaliMonthKey(day);
+  while (jalaliMonthKey(plusDays(day, -1)) === month) day = plusDays(day, -1);
+  return day;
+}
+
+function firstDayOfNextJalaliMonth(value) {
+  let day = firstDayOfJalaliMonth(value);
+  const month = jalaliMonthKey(day);
+  while (jalaliMonthKey(day) === month) day = plusDays(day, 1);
+  return day;
+}
+
+function setPickedDate(input, date) {
+  input.dataset.date = dateKey(date);
+  input.value = numericJalali(date);
+}
+
+function pickedDate(input) {
+  const date = input.dataset.date ? new Date(`${input.dataset.date}T00:00:00`) : null;
+  return date && !Number.isNaN(date.getTime()) ? atMidnight(date) : null;
+}
+
+function renderDatePicker() {
+  const first = firstDayOfJalaliMonth(pickerMonth);
+  const next = firstDayOfNextJalaliMonth(first);
+  const chosen = activeDateInput ? pickedDate(activeDateInput) : null;
+  ui.datePickerMonth.textContent = persianMonth.format(first);
+  ui.datePickerDays.replaceChildren();
+
+  const offset = (first.getDay() + 1) % 7;
+  for (let index = 0; index < offset; index += 1) {
+    const spacer = document.createElement('span');
+    spacer.setAttribute('aria-hidden', 'true');
+    ui.datePickerDays.append(spacer);
+  }
+
+  for (let day = first; day < next; day = plusDays(day, 1)) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = toPersianDigits(jalaliParts(day).day);
+    button.setAttribute('aria-label', `${weekday.format(day)}، ${dateLong.format(day)}`);
+    button.classList.toggle('selected', chosen !== null && isSameDay(day, chosen));
+    button.classList.toggle('today', isSameDay(day, new Date()));
+    button.addEventListener('click', () => {
+      const input = activeDateInput;
+      setPickedDate(input, day);
+      ui.datePickerDialog.close();
+      input.focus();
+    });
+    ui.datePickerDays.append(button);
+  }
+}
+
+function openDatePicker(input) {
+  activeDateInput = input;
+  pickerMonth = pickedDate(input) || selectedDate;
+  renderDatePicker();
+  ui.datePickerDialog.showModal();
+}
+
 function readTasks() {
   try { return JSON.parse(localStorage.getItem('emrooz.tasks.v1') || '[]'); }
   catch { return []; }
@@ -109,6 +202,15 @@ function persistFalState() {
   localStorage.setItem('emrooz.fal.v1', JSON.stringify(falState));
 }
 
+function readProjects() {
+  try { return JSON.parse(localStorage.getItem('emrooz.projects.v1') || '[]'); }
+  catch { return []; }
+}
+
+function persistProjects() {
+  localStorage.setItem('emrooz.projects.v1', JSON.stringify(projects));
+}
+
 function persist() {
   localStorage.setItem('emrooz.tasks.v1', JSON.stringify(tasks));
   syncNativeTasks();
@@ -127,11 +229,14 @@ function persistNotificationLog() {
 }
 
 function notificationsEnabled() {
+  if (window.AndroidNotifications?.notificationsAllowed) {
+    try { return window.AndroidNotifications.notificationsAllowed(); } catch { return false; }
+  }
   return 'Notification' in window && Notification.permission === 'granted';
 }
 
 function renderNotificationState() {
-  const supported = 'Notification' in window;
+  const supported = Boolean(window.AndroidNotifications?.notificationsAllowed) || 'Notification' in window;
   const enabled = notificationsEnabled();
   ui.notificationButton.classList.toggle('enabled', enabled);
   ui.notificationCard.classList.toggle('enabled', enabled);
@@ -169,30 +274,31 @@ function renderWeek() {
 }
 
 function renderTasks() {
+  const currentKey = dateKey(selectedDate);
   const dailyTasks = tasks
-    .filter(task => task.date === dateKey(selectedDate))
+    .filter(task => task.date === currentKey)
     .sort((a, b) => a.time.localeCompare(b.time));
 
   ui.taskList.replaceChildren();
   dailyTasks.forEach(task => {
-    const item = document.createElement('article');
-    item.className = `task${task.done ? ' done' : ''}`;
-    item.innerHTML = `
-      <time class="task-time">${toPersianDigits(task.time)}</time>
-      <div class="task-text">
-        <div class="task-title"></div>
-        ${task.note ? '<div class="task-note"></div>' : ''}
-      </div>
-      <div class="task-actions">
-        <button class="check" aria-label="تغییر وضعیت کار">${task.done ? '✓' : ''}</button>
-        <button class="delete" aria-label="حذف کار">×</button>
-      </div>`;
-    item.querySelector('.task-title').textContent = task.title;
-    if (task.note) item.querySelector('.task-note').textContent = task.note;
-    item.querySelector('.check').addEventListener('click', () => toggleTask(task.id));
-    item.querySelector('.delete').addEventListener('click', () => removeTask(task.id));
-    ui.taskList.append(item);
-  });
+      const item = document.createElement('article');
+      item.className = `task${task.done ? ' done' : ''}`;
+      item.innerHTML = `
+        <time class="task-time">${toPersianDigits(task.time)}</time>
+        <div class="task-text">
+          <div class="task-title"></div>
+          ${task.note ? '<div class="task-note"></div>' : ''}
+        </div>
+        <div class="task-actions">
+          <button class="check" aria-label="تغییر وضعیت کار">${task.done ? '✓' : ''}</button>
+          <button class="delete" aria-label="حذف کار">×</button>
+        </div>`;
+      item.querySelector('.task-title').textContent = task.title;
+      if (task.note) item.querySelector('.task-note').textContent = task.note;
+      item.querySelector('.check').addEventListener('click', () => toggleTask(task.id));
+      item.querySelector('.delete').addEventListener('click', () => removeTask(task.id));
+      ui.taskList.append(item);
+    });
 
   const completed = dailyTasks.filter(task => task.done).length;
   const percent = dailyTasks.length ? Math.round((completed / dailyTasks.length) * 100) : 0;
@@ -214,6 +320,7 @@ function render() {
   renderWeek();
   renderTasks();
   renderNotificationState();
+  window.renderSubscriptions?.();
 }
 
 function storeAndRender() { persist(); renderTasks(); }
@@ -335,7 +442,175 @@ function initializeDailyFal() {
   if (expired) window.setTimeout(() => openFal({ automatic: true }), 450);
 }
 
+function renderProjectPickerOptions() {
+  ui.projectOptions.replaceChildren();
+  projects.forEach(project => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `project-option${ui.taskProjectId.value === project.id ? ' selected' : ''}`;
+    btn.dataset.project = project.id;
+    const color = document.createElement('span');
+    color.className = 'project-option-color';
+    color.style.cssText = `display:inline-block;width:10px;height:10px;border-radius:50%;background:${PROJECT_COLORS[project.color]};margin-left:8px;vertical-align:middle`;
+    btn.append(color, document.createTextNode(project.title));
+    btn.addEventListener('click', () => {
+      ui.taskProjectId.value = project.id;
+      ui.projectSelectLabel.textContent = project.title;
+      ui.projectDropdown.hidden = true;
+      renderProjectPickerOptions();
+    });
+    ui.projectOptions.append(btn);
+  });
+}
+
+function resetProjectForm() {
+  ui.projectForm.reset();
+  ui.scopePicker.querySelectorAll('.scope-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
+  ui.colorPicker.querySelectorAll('.color-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
+}
+
+function cycleTaskProject(task) {
+  // Remove project from task (toggle off)
+  task.projectId = null;
+  persist();
+  renderTasks();
+  showToast('پروژه از کار حذف شد');
+}
+
+function renderProjects() {
+  const grouped = {};
+  SCOPE_ORDER.forEach(scope => {
+    grouped[scope] = projects.filter(p => p.scope === scope);
+  });
+
+  ui.projectsList.replaceChildren();
+
+  SCOPE_ORDER.forEach(scope => {
+    const scopeProjects = grouped[scope];
+    if (scopeProjects.length === 0) return;
+
+    const group = document.createElement('div');
+    group.className = 'scope-group';
+    group.innerHTML = `<h4 class="scope-group-title">${SCOPE_LABELS[scope]}</h4>`;
+    ui.projectsList.append(group);
+
+    scopeProjects.forEach(project => {
+      const projectTasks = tasks.filter(t => t.projectId === project.id);
+      const isScheduled = projectTasks.length > 0;
+      const done = projectTasks.filter(t => t.done).length;
+      const total = projectTasks.length;
+
+      const card = document.createElement('div');
+      card.className = 'project-card';
+      card.innerHTML = `
+        <span class="project-card-color" style="background:${PROJECT_COLORS[project.color]}"></span>
+        <div class="project-card-body">
+          <div class="project-card-title"></div>
+          <div class="project-card-meta">
+            <span class="project-card-scope">${SCOPE_LABELS[project.scope]}</span>
+            <span class="project-status-pill ${isScheduled ? 'scheduled' : 'unscheduled'}">
+              ${isScheduled ? `${toPersianDigits(total)} کار زمان‌بندی‌شده` : 'زمان‌بندی نشده'}
+            </span>
+          </div>
+        </div>
+        <div class="project-card-actions">
+          <button type="button" class="project-schedule-btn" data-project-id="${project.id}">زمان‌بندی</button>
+        </div>
+        <div class="project-card-progress">
+          <p>${toPersianDigits(total ? Math.round((done / total) * 100) : 0)}٪</p>
+          <small>${toPersianDigits(done)}/${toPersianDigits(total)}</small>
+        </div>
+        <button class="project-card-delete" data-project-id="${project.id}" aria-label="حذف پروژه">×</button>
+      `;
+
+      card.querySelector('.project-card-title').textContent = project.title;
+      card.querySelector('.project-schedule-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openScheduleDialog(project);
+      });
+
+      card.querySelector('.project-card-delete').addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteProject(project.id);
+      });
+
+      group.append(card);
+    });
+  });
+
+  ui.projectCount.textContent = `${formatFa.format(projects.length)} پروژه`;
+  ui.projectsEmpty.hidden = projects.length > 0;
+}
+
+function openScheduleDialog(project) {
+  const now = new Date();
+  const minutes = Math.floor(now.getMinutes() / 5) * 5;
+  ui.scheduleProjectId.value = project.id;
+  ui.scheduleProjectTitle.textContent = `زمان‌بندی: ${project.title}`;
+  ui.scheduleTaskTitle.value = project.title;
+  setPickedDate(ui.scheduleDate, selectedDate);
+  ui.scheduleTime.value = `${String(now.getHours()).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  ui.scheduleTaskNote.value = '';
+  ui.scheduleDialog.showModal();
+  window.setTimeout(() => ui.scheduleTaskTitle.focus(), 60);
+}
+
+function deleteProject(id) {
+  // Unlink tasks
+  tasks.forEach(task => { if (task.projectId === id) task.projectId = null; });
+  projects = projects.filter(p => p.id !== id);
+  persist();
+  persistProjects();
+  renderProjects();
+  renderTasks();
+  showToast('پروژه حذف شد');
+}
+
+function switchView(view) {
+  const isDay = view === 'day';
+  const isSubscriptions = view === 'subscriptions';
+
+  document.querySelectorAll('.view-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.view === view);
+  });
+
+  const daySections = [
+    document.querySelector('.hero-date'),
+    document.querySelector('.week'),
+    document.querySelector('.progress'),
+    document.querySelector('.task-section'),
+    document.querySelector('.notification-card')
+  ];
+  daySections.forEach(el => {
+    if (el) {
+      el.style.display = isDay ? '' : 'none';
+      el.hidden = !isDay;
+    }
+  });
+
+  const projectsSec = document.getElementById('projectsSection');
+  if (projectsSec) { projectsSec.style.display = 'none'; projectsSec.hidden = true; }
+  const subscriptionsSec = document.getElementById('subscriptionsSection');
+  subscriptionsSec.style.display = isSubscriptions ? 'block' : 'none';
+  subscriptionsSec.hidden = !isSubscriptions;
+  const preview = document.getElementById('subscriptionPreview');
+  preview.style.display = isDay ? '' : 'none';
+  preview.hidden = !isDay;
+
+  const addBtn = document.querySelector('.add-button');
+  if (addBtn) {
+    addBtn.style.display = isDay ? '' : 'none';
+    addBtn.hidden = !isDay;
+  }
+
+  if (isSubscriptions) window.renderSubscriptions?.();
+}
+
 async function enableNotifications() {
+  if (window.AndroidNotifications?.openNotificationSettings) {
+    window.AndroidNotifications.openNotificationSettings();
+    return;
+  }
   if (!('Notification' in window)) {
     showToast('مرورگر شما اعلان را پشتیبانی نمی‌کند');
     return;
@@ -356,7 +631,8 @@ async function sendNotification(title, body, tag) {
   const options = { body, tag: `emrooz-${tag}`, renotify: true, dir: 'rtl', lang: 'fa', badge: './icon.svg', icon: './icon.svg' };
   try {
     if ('serviceWorker' in navigator) {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) throw new Error('No active service worker');
       await registration.showNotification(title, options);
     } else {
       new Notification(title, options);
@@ -397,6 +673,7 @@ function dailySummary(now, period) {
 }
 
 function checkNotifications() {
+  if (window.AndroidNotifications?.syncTasks) return; // Native alarms run while the app is closed.
   if (!notificationsEnabled()) return;
   const now = new Date();
 
@@ -434,8 +711,12 @@ function checkNotifications() {
 function openTaskDialog() {
   const now = new Date();
   const minutes = Math.floor(now.getMinutes() / 5) * 5;
-  ui.taskDate.value = numericJalali(selectedDate);
+  setPickedDate(ui.taskDate, selectedDate);
   ui.taskTime.value = `${String(now.getHours()).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  ui.taskProjectId.value = '';
+  ui.projectSelectLabel.textContent = 'بدون پروژه';
+  ui.projectDropdown.hidden = true;
+  renderProjectPickerOptions();
   ui.dialog.showModal();
   window.setTimeout(() => ui.taskTitle.focus(), 60);
 }
@@ -450,6 +731,33 @@ $('notificationButton').addEventListener('click', () => {
   else showToast('اعلان‌ها فعال هستند');
 });
 $('closeDialog').addEventListener('click', () => ui.dialog.close());
+for (const input of [ui.taskDate, ui.scheduleDate, $('subscriptionDate')]) {
+  input.addEventListener('click', () => openDatePicker(input));
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openDatePicker(input);
+    }
+  });
+}
+$('closeDatePicker').addEventListener('click', () => ui.datePickerDialog.close());
+$('previousMonth').addEventListener('click', () => {
+  pickerMonth = plusDays(firstDayOfJalaliMonth(pickerMonth), -1);
+  renderDatePicker();
+});
+$('nextMonth').addEventListener('click', () => {
+  pickerMonth = firstDayOfNextJalaliMonth(pickerMonth);
+  renderDatePicker();
+});
+$('datePickerToday').addEventListener('click', () => {
+  const input = activeDateInput;
+  setPickedDate(input, new Date());
+  ui.datePickerDialog.close();
+  input.focus();
+});
+ui.datePickerDialog.addEventListener('click', event => {
+  if (event.target === ui.datePickerDialog) ui.datePickerDialog.close();
+});
 $('todayButton').addEventListener('click', () => { selectedDate = atMidnight(new Date()); render(); });
 $('previousDay').addEventListener('click', () => { selectedDate = plusDays(selectedDate, -1); render(); });
 $('nextDay').addEventListener('click', () => { selectedDate = plusDays(selectedDate, 1); render(); });
@@ -458,31 +766,177 @@ ui.falDialog.addEventListener('click', event => { if (event.target === ui.falDia
 
 ui.form.addEventListener('submit', event => {
   event.preventDefault();
-  const enteredDate = toEnglishDigits(ui.taskDate.value).replace(/-/g, '/');
-  const selectedJalali = toEnglishDigits(numericJalali(selectedDate));
-  if (enteredDate !== selectedJalali) {
-    showToast('تاریخ را از نوار بالای صفحه انتخاب کن');
+  const taskDate = pickedDate(ui.taskDate);
+  if (!taskDate) {
+    showToast('تاریخ کار را از تقویم انتخاب کن');
     return;
   }
   tasks.push({
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-    title: ui.taskTitle.value.trim(),
-    note: ui.taskNote.value.trim(),
-    date: dateKey(selectedDate),
-    time: ui.taskTime.value,
-    done: false
-  });
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      title: ui.taskTitle.value.trim(),
+      note: ui.taskNote.value.trim(),
+      date: dateKey(taskDate),
+      time: ui.taskTime.value,
+      projectId: null,
+      done: false
+    });
   persist();
   ui.form.reset();
   ui.dialog.close();
-  renderTasks();
+  selectedDate = taskDate;
+  render();
   showToast('کار ذخیره شد');
 });
 
 render();
 syncNativeTasks();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(error => {
+      console.warn('Service worker registration failed:', error);
+    });
+  });
+}
 window.setInterval(checkNotifications, 15000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNotifications(); });
 checkNotifications();
 initializeDailyFal();
+
+// View tab switching
+document.querySelectorAll('.view-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    switchView(tab.dataset.view);
+  });
+});
+
+// Project picker dropdown
+ui.projectSelect.addEventListener('click', () => {
+  ui.projectDropdown.hidden = !ui.projectDropdown.hidden;
+  if (!ui.projectDropdown.hidden) renderProjectPickerOptions();
+});
+
+// No-project option
+document.querySelector('.project-dropdown .project-option[data-project=""]').addEventListener('click', () => {
+  ui.taskProjectId.value = '';
+  ui.projectSelectLabel.textContent = 'بدون پروژه';
+  ui.projectDropdown.hidden = true;
+  renderProjectPickerOptions();
+});
+
+// New project from dropdown
+$('newProjectButton').addEventListener('click', () => {
+  ui.projectDropdown.hidden = true;
+  resetProjectForm();
+  ui.projectDialog.showModal();
+  window.setTimeout(() => ui.projectTitle.focus(), 60);
+});
+
+// Close project dialog
+$('closeProjectDialog').addEventListener('click', () => { resetProjectForm(); ui.projectDialog.close(); });
+ui.projectDialog.addEventListener('click', event => { if (event.target === ui.projectDialog) { resetProjectForm(); ui.projectDialog.close(); } });
+
+// Close project dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.project-picker')) ui.projectDropdown.hidden = true;
+});
+
+// Scope chip selection
+ui.scopePicker.querySelectorAll('.scope-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    ui.scopePicker.querySelectorAll('.scope-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+
+// Color chip selection
+ui.colorPicker.querySelectorAll('.color-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    ui.colorPicker.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  });
+});
+
+// Project form submit
+ui.projectForm.addEventListener('submit', event => {
+  event.preventDefault();
+  const scope = ui.scopePicker.querySelector('.scope-chip.active').dataset.scope;
+  const color = Number(ui.colorPicker.querySelector('.color-chip.active').dataset.color);
+  const newProject = {
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    title: ui.projectTitle.value.trim(),
+    scope: scope,
+    color: color,
+    createdAt: dateKey(new Date())
+  };
+  projects.push(newProject);
+  persistProjects();
+  // Select this project in the task dialog
+  ui.taskProjectId.value = newProject.id;
+  ui.projectSelectLabel.textContent = newProject.title;
+  renderProjectPickerOptions();
+  ui.projectForm.reset();
+  resetProjectForm();
+  ui.projectDialog.close();
+  renderProjects();
+  showToast('پروژه ساخته شد (بدون زمان‌بندی در روز)');
+});
+
+// Open project dialog from header button
+if (ui.openAddProjectBtn) {
+  ui.openAddProjectBtn.addEventListener('click', () => {
+    resetProjectForm();
+    ui.projectDialog.showModal();
+    window.setTimeout(() => ui.projectTitle.focus(), 60);
+  });
+}
+
+// Close schedule dialog
+if (ui.closeScheduleDialog) {
+  ui.closeScheduleDialog.addEventListener('click', () => ui.scheduleDialog.close());
+}
+if (ui.scheduleDialog) {
+  ui.scheduleDialog.addEventListener('click', event => {
+    if (event.target === ui.scheduleDialog) ui.scheduleDialog.close();
+  });
+}
+
+// Schedule form submit
+if (ui.scheduleForm) {
+  ui.scheduleForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const projectId = ui.scheduleProjectId.value;
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+
+    const scheduleDate = pickedDate(ui.scheduleDate);
+    if (!scheduleDate) {
+      showToast('تاریخ کار را از تقویم انتخاب کن');
+      return;
+    }
+
+    tasks.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      title: ui.scheduleTaskTitle.value.trim(),
+      note: ui.scheduleTaskNote.value.trim(),
+      date: dateKey(scheduleDate),
+      time: ui.scheduleTime.value,
+      projectId: projectId,
+      done: false
+    });
+
+    persist();
+    ui.scheduleForm.reset();
+    ui.scheduleDialog.close();
+    selectedDate = scheduleDate;
+    renderProjects();
+    render();
+    showToast(`پروژه «${project.title}» زمان‌بندی شد`);
+  });
+}
+
+// Create project from empty state
+$('createProjectEmpty').addEventListener('click', () => {
+  resetProjectForm();
+  ui.projectDialog.showModal();
+  window.setTimeout(() => ui.projectTitle.focus(), 60);
+});

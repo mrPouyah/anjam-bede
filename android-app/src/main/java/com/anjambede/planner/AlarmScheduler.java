@@ -77,7 +77,7 @@ final class AlarmScheduler {
         setAlarm(context, next.getTimeInMillis(), pending);
     }
 
-    private static void setAlarm(Context context, long at, PendingIntent pending) {
+    static void setAlarm(Context context, long at, PendingIntent pending) {
         AlarmManager manager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         try {
             if (Build.VERSION.SDK_INT >= 23) manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending);

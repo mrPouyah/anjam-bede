@@ -11,7 +11,9 @@ const types = {
 };
 
 http.createServer((request, response) => {
-  const pathname = decodeURIComponent(request.url.split('?')[0]);
+  const parsedUrl = new URL(request.url, 'http://127.0.0.1:4173');
+  const pathname = decodeURIComponent(parsedUrl.pathname);
+
   const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
   const file = path.resolve(root, relative);
   if (!file.startsWith(root)) {
